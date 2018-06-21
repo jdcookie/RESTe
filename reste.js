@@ -1,3 +1,4 @@
+var queryString = require('query-string');
 var main = function() {
 
     var reste = this;
@@ -18,6 +19,15 @@ var main = function() {
         if (config.debug && message) {
             console.warn('::RESTE::' + message);
         }
+    }
+
+    // determine whether to append a '?' when concatenating the URL
+    function addQuestionMark(url) {
+        // if already ends in question mark, don't add one - else return one
+        if ((url.slice(-1) !== '?') && (url.slice(-1) !== '&')) {
+            return '?';
+        }
+        return '';
     }
 
     // sets up the config, headers, adds methods
@@ -102,11 +112,22 @@ var main = function() {
         // open the url and check if we're overrding with
         // a local http based url
 
+        var finalUrl = '';
+
         if (args.url.indexOf('http') >= 0) {
-            http.open(args.method, args.url);
+             finalUrl = args.url;
         } else {
-            http.open(args.method, (config.url ? config.url + args.url : args.url));
+            finalUrl = config.url ? config.url + args.url : args.url;
         }
+
+        if (args.secure) {
+            // make sure the protocol is https
+            if (!finalUrl.startsWith('https')) {
+                finalUrl = finalUrl.replace('http', 'https');
+            }
+        }
+
+        http.open(args.method, finalUrl);
 
         // load up any global request headers
         requestHeaders.forEach(function(header) {
@@ -272,6 +293,11 @@ var main = function() {
         log(args.requestHeaders);
 
         reste[args.name] = function(params, onLoad, onError) {
+            // if using params - split it into 2 types
+            // {
+            //    inURL: {}
+            //    queryParams: {}
+            // }
 
             var body,
                 method = 'GET',
@@ -297,16 +323,16 @@ var main = function() {
 
             if (!onLoad && typeof (params) === 'function') {
                 onLoad = params;
-            } else {
-                for (var param in params) {
+            } else if (params.inURL) {
+                for (var param in params.inURL) {
                     if (param === 'body') {
-                        body = params[param];
+                        body = params.inURL[param];
                     } else {
                         while (url.indexOf('<' + param + '>') >= 0) {
-                            if ( typeof params[param] === 'object') {
-                                url = url.replace('<' + param + '>', JSON.stringify(params[param]));
+                            if ( typeof params.inURL[param] === 'object') {
+                                url = url.replace('<' + param + '>', JSON.stringify(params.inURL[param]));
                             } else {
-                                url = url.replace('<' + param + '>', params[param]);
+                                url = url.replace('<' + param + '>', params.inURL[param]);
                             }
                         }
                     }
@@ -330,6 +356,18 @@ var main = function() {
                 };
             }
 
+            if (config.defaultQueryParams && (!params || !params.cancelDefaultQueryParams)) {
+                // append the global query params to the request
+                var defaultStringified = queryString.stringify(config.defaultQueryParams);
+                url = url + addQuestionMark(url) + defaultStringified + '&';
+            }
+
+            if (params && params.queryParams) {
+                // append the query params to the end of the URL
+                var localStringified = queryString.stringify(params.queryParams);
+                url = url + addQuestionMark(url) + localStringified;
+            }
+
             if (args.expects) {
                 // look for explicityly required parameters
                 args.expects.forEach(function(expectedParam) {
@@ -339,6 +377,7 @@ var main = function() {
                 });
 
                 makeHttpRequest({
+                    secure: args.secure,
                     url : url,
                     method : method,
                     params : body,
@@ -371,6 +410,7 @@ var main = function() {
                 } else {
 
                     makeHttpRequest({
+                        secure: args.secure,
                         url : url,
                         method : method,
                         params : body,
