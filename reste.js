@@ -81,13 +81,6 @@ var main = function() {
             }
         }
 
-        // debug the url
-        if (args.url.indexOf('http') >= 0) {
-            log(args.url);
-        } else {
-            log((config.url ? config.url + args.url : args.url));
-        }
-
         if (args.params) {
             log(JSON.stringify(args.params));
         }
@@ -126,6 +119,9 @@ var main = function() {
                 finalUrl = finalUrl.replace('http', 'https');
             }
         }
+
+        // debug the url
+        log(finalUrl);
 
         http.open(args.method, finalUrl);
 
@@ -293,10 +289,11 @@ var main = function() {
         log(args.requestHeaders);
 
         reste[args.name] = function(params, onLoad, onError) {
-            // if using params - split it into 2 types
+            // if using params - split it into 3 types
             // {
             //    inURL: {}
             //    queryParams: {}
+            //    body: {} (for post or put)
             // }
 
             var body,
@@ -321,13 +318,17 @@ var main = function() {
                 onError = deferred.reject;
             }
 
+            if (config.defaultQueryParams && (!params || !params.cancelDefaultQueryParams)) {
+                // append the global query params to the request
+                var defaultStringified = queryString.stringify(config.defaultQueryParams);
+                url = url + addQuestionMark(url) + defaultStringified + '&';
+            }
+
             if (!onLoad && typeof (params) === 'function') {
                 onLoad = params;
-            } else if (params.inURL) {
-                for (var param in params.inURL) {
-                    if (param === 'body') {
-                        body = params.inURL[param];
-                    } else {
+            } else {
+                if (params.inURL) {
+                    for (var param in params.inURL) {
                         while (url.indexOf('<' + param + '>') >= 0) {
                             if ( typeof params.inURL[param] === 'object') {
                                 url = url.replace('<' + param + '>', JSON.stringify(params.inURL[param]));
@@ -336,6 +337,16 @@ var main = function() {
                             }
                         }
                     }
+                }
+    
+                if (params.body) {
+                    body = params.body;
+                }
+    
+                if (params && params.queryParams) {
+                    // append the query params to the end of the URL
+                    var localStringified = queryString.stringify(params.queryParams);
+                    url = url + addQuestionMark(url) + localStringified;
                 }
             }
 
@@ -354,18 +365,6 @@ var main = function() {
                 onError = function(e) {
                     args.onError(e, onLoad);
                 };
-            }
-
-            if (config.defaultQueryParams && (!params || !params.cancelDefaultQueryParams)) {
-                // append the global query params to the request
-                var defaultStringified = queryString.stringify(config.defaultQueryParams);
-                url = url + addQuestionMark(url) + defaultStringified + '&';
-            }
-
-            if (params && params.queryParams) {
-                // append the query params to the end of the URL
-                var localStringified = queryString.stringify(params.queryParams);
-                url = url + addQuestionMark(url) + localStringified;
             }
 
             if (args.expects) {
