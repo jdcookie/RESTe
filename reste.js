@@ -175,7 +175,7 @@ var main = function() {
 
             function retry() {
                 log('Retrying...');
-                makeHttpRequest(args, onLoad, onError);
+                return makeHttpRequest(args, onLoad, onError);
             }
 
             var error;
@@ -243,6 +243,8 @@ var main = function() {
         } else {
             send();
         }
+
+        return http;
 
     }
 
@@ -375,7 +377,7 @@ var main = function() {
                     }
                 });
 
-                makeHttpRequest({
+                return makeHttpRequest({
                     secure: args.secure,
                     url : url,
                     method : method,
@@ -408,7 +410,7 @@ var main = function() {
                     throw 'RESTe :: missing parameter/s ' + missing + ' for method ' + args.name;
                 } else {
 
-                    makeHttpRequest({
+                    return makeHttpRequest({
                         secure: args.secure,
                         url : url,
                         method : method,
@@ -420,7 +422,7 @@ var main = function() {
                 }
             }
 
-            if (deferred) {
+            if (deferred) { // this code is unreachable now - because we are returning http in blocks above
                 return deferred.promise;
             }
         };
